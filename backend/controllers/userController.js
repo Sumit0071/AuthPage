@@ -1,6 +1,7 @@
 import UserModel from '../models/user.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import transporter from '../config/emailConfig.js';
 
 class UserController {
 
@@ -81,7 +82,7 @@ class UserController {
             else {
                 const salt = await bcrypt.genSalt( 10 );
                 const newhashPassword = await bcrypt.hash( password, salt );
-                
+
                 await UserModel.findByIdAndUpdate( req.User._id, { $set: { password: newhashPassword } } );
                 res.send( { "status": "success", "message": "Password Changed succesfully" } )
             }
@@ -94,7 +95,7 @@ class UserController {
 
     //Logged user info
     static loggedUser = async ( req, res ) => {
-            res.send({"user":req.User})
+        res.send( { "user": req.User } )
     }
 
     // send email for reset password
@@ -102,13 +103,20 @@ class UserController {
         const { email } = req.body;
         if ( email ) {
             const user = await UserModel.findOne( { email: email } );
-            
+
             if ( user ) {
                 const secret = user._id + process.env.JWT_SECRET_KEY;
                 const token = jwt.sign( { userID: user._id }, secret, { expiresIn: '15m' } );
                 const link = `http://127.0.0.1:3000/api/user/reset/${user._id}/${token}`;
                 console.log( link );
-                res.send( { "status": "success", "message": "Password Reset Email sent to specified mail id Please check the mail" } );
+                //Send Emial
+                let info = await transporter.sendMail( {
+                    from: process.env.EMAIL_FROM,
+                    to: user.email,
+                    subject: "AuthPage: Reset Password Link",
+                    html: `<a href=${link}>Click Here </a> to Reset Your Password`
+                } )
+                res.send( { "status": "success", "message": "Password Reset Email sent to specified mail id Please check the mail", "info": info } );
             }
             else {
                 res.send( { "status": "failed", "message": "Email does not Exist" } );
@@ -117,36 +125,36 @@ class UserController {
         else {
             res.send( { "status": "failed", "message": "Email field are required" } );
         }
-}
+    }
 
     static userPasswordReset = async ( req, res ) => {
         const { password, password_confirmation } = req.body;
         const { id, token } = req.params;
-        if (id.startsWith(':')) {
-            id = id.slice(1);
+        if ( id.startsWith( ':' ) ) {
+            id = id.slice( 1 );
         }
 
         // Validate if id is a valid ObjectId
-        if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-            return res.status(400).send({ "status": "failed", "message": "Invalid user ID format" });
+        if ( !id.match( /^[0-9a-fA-F]{24}$/ ) ) {
+            return res.status( 400 ).send( { "status": "failed", "message": "Invalid user ID format" } );
         }
 
         const user = await UserModel.findById( id );
-        if (!user) {
-            return res.status(400).send({ "status": "failed", "message": "User not found" });
+        if ( !user ) {
+            return res.status( 400 ).send( { "status": "failed", "message": "User not found" } );
         }
         const new_secret = user._id + process.env.JWT_SECRET_KEY;
         try {
-            jwt.verify( token, new_secret ); 
+            jwt.verify( token, new_secret );
             if ( password && password_confirmation ) {
                 if ( password !== password_confirmation ) {
                     res.send( { "status": "failed", "message": "New Password and confirm password doesn't match" } );
                 }
-                else{
+                else {
                     const salt = await bcrypt.genSalt( 10 );
                     const newhashPassword = await bcrypt.hash( password, salt );
                     await UserModel.findByIdAndUpdate( user._id, { $set: { password: newhashPassword } } );
-                res.send( { "status": "success", "message": "Password Reset succesfully" } )
+                    res.send( { "status": "success", "message": "Password Reset succesfully" } )
                 }
             }
             else {
