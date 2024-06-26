@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 class UserController {
+
     //User Registration
     static userRegistration = async ( req, res ) => {
         const { name, email, password, password_confirmation, tc } = req.body;
@@ -24,8 +25,8 @@ class UserController {
                         await doc.save();
                         const saved_user = UserModel.findOne( { email: email } );
                         //Generating JWT token
-                        const token = jwt.sign( { userID: saved_user._id },process.env.JWT_SECRET_KEY, { expiresIn: '5d' } );
-                        res.status( 201 ).send( { "status": "success", "message": "Registration successful","token":token } );
+                        const token = jwt.sign( { userID: saved_user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '5d' } );
+                        res.status( 201 ).send( { "status": "success", "message": "Registration successful", "token": token } );
                     }
                 } catch ( err ) {
                     console.log( err );
@@ -38,7 +39,8 @@ class UserController {
             res.send( { "status": "failed", "message": "All fields are required" } );
         }
     }
-//User Login
+
+    //User Login
     static userLogin = async ( req, res ) => {
         try {
             const { email, password } = req.body;
@@ -48,8 +50,8 @@ class UserController {
                     const isMatch = await bcrypt.compare( password, user.password );
                     if ( ( user.email === email ) && isMatch ) {
                         //Generate JWT token
-                        const token = jwt.sign( { userID: user._id },process.env.JWT_SECRET_KEY, { expiresIn: '5d' } );
-                        return res.send( { "status": "success", "message": "Login Successfull" ,"token":token} );
+                        const token = jwt.sign( { userID: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '5d' } );
+                        return res.send( { "status": "success", "message": "Login Successfull", "token": token } );
                     }
                     res.send( { "status": "failed", "message": "either password or email is incorrect" } )
                 }
@@ -69,6 +71,7 @@ class UserController {
         }
     }
 
+    //Change Password
     static changeUserPassword = async ( req, res ) => {
         const { password, password_confirmation } = req.body;
         if ( password && password_confirmation ) {
@@ -78,6 +81,9 @@ class UserController {
             else {
                 const salt = await bcrypt.genSalt( 10 );
                 const newhashPassword = await bcrypt.hash( password, salt );
+                
+                await UserModel.findByIdAndUpdate( req.User._id, { $set: { password: newhashPassword } } );
+                res.send( { "status": "success", "message": "Password Changed succesfully" } )
             }
         }
         else {
